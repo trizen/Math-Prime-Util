@@ -424,13 +424,14 @@ static UV count_sig(UV n, UV m, UV lo, const UV *sig, int nsig, UV j)
        *   }
        * } */
       UV local_j = j;
-      for (p = lo; p <= hi; p = next_prime(p)) {
+      for (p = lo; p <= hi;) {
         UV t = mul_pow_limit(m, p, e, n);
         UV r;
         if (t == 0) break;
         r = next_prime(p);
         ++local_j;  /* now local_j == prime_count(p) == prime_count(r - 1) */
         count += count_sig(n, t, r, new_sig, nk, local_j);
+        p = r;
       }
     }
   }
