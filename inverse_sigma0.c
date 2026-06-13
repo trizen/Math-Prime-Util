@@ -328,25 +328,6 @@ static void enumerate_signatures(UV k, UV max_sum_e,
 /*   Count x <= n of the form  x = m * p0^s0 * p1^s1 * ...                   */
 /*   with p0 < p1 < ... all primes >= lo.                                     */
 /*   j = prime_count(lo - 1)  [invariant maintained by all callers]           */
-/*                                                                             */
-/* This is a direct, line-by-line translation of the anonymous sub inside     */
-/* count_prime_signature_numbers() in count_of_inverse_tau_in_range.pl.       */
-/*                                                                             */
-/* The Perl sub signature is ($m, $lo, $rem_sig, $rem_sum, $j = 0).          */
-/* We represent $rem_sig as (sig, nsig) and compute $rem_sum on entry.        */
-/*                                                                             */
-/* Invariant: j == prime_count(lo - 1) at every call.                         */
-/*                                                                             */
-/* k==1 base:  count += prime_count(hi) - j                                   */
-/*   Because prime_count(hi) - prime_count(lo-1) = #primes in [lo, hi].      */
-/*                                                                             */
-/* k==2 base:  for each outer prime p in [lo, hi]:                            */
-/*   local_j starts at j; ++local_j before subtracting => local_j==pc(p).    */
-/*   count += prime_count(u) - local_j  where u = rootint(n/t, e2).          */
-/*   This gives #primes in (p, u], i.e. valid inner primes q > p.            */
-/*                                                                             */
-/* General:  recurse with j = ++local_j so new j == prime_count(p)           */
-/*   == prime_count(next_prime(p) - 1), preserving the invariant.            */
 /******************************************************************************/
 
 static UV count_sig(UV n, UV m, UV lo, const UV *sig, int nsig, UV j);
@@ -357,50 +338,32 @@ static UV count_sig(UV n, UV m, UV lo, const UV *sig, int nsig, UV j)
 
   if (nsig <= 0 || m == 0) return 0;
 
-  /* $rem_sum = sum of remaining exponents
-   * $hi = rootint(divint($n, $m), $rem_sum) */
   rem_sum = 0;
   for (i = 0; i < (UV)nsig; i++) rem_sum += sig[i];
   if (rem_sum == 0) return 0;
   if (n < m) return 0;
   hi = rootint(n / m, rem_sum);
 
-  /* if ($lo > $hi) { return; } */
   if (lo > hi) return 0;
 
   count = 0;
 
-  /* for my $i (0 .. $#$rem_sig) { */
   for (i = 0; i < (UV)nsig; i++) {
     UV e = sig[i];
     UV p, new_sig[MAX_SIG_LEN];
     int nk, ni;
 
-    /* next if $seen[$e]++ */
     if (i > 0 && sig[i] == sig[i - 1]) continue;
 
-    /* @new_sig = @$rem_sig; splice(@new_sig, $i, 1) */
     nk = 0;
     for (ni = 0; ni < nsig; ni++)
       if (ni != (int)i) new_sig[nk++] = sig[ni];
 
     if (nsig == 1) {
-      /* if ($k == 1) {
-       *   $count = addint($count, prime_count($hi) - $j);
-       *   return;
-       * } */
       UV pc_hi = prime_count(hi);
       if (pc_hi > j) count += pc_hi - j;
 
     } else if (nsig == 2) {
-      /* if ($k == 2) {
-       *   my $e2 = $new_sig[0];
-       *   forprimes {
-       *     my $t = mulint($m, powint($_, $e));
-       *     my $u = rootint(divint($n, $t), $e2);
-       *     $count = addint($count, prime_count($u) - ++$local_j);
-       *   } $lo, $hi;
-       * } */
       UV e2 = new_sig[0];
       UV local_j = j;
       for (p = lo; p <= hi; p = next_prime(p)) {
@@ -409,27 +372,18 @@ static UV count_sig(UV n, UV m, UV lo, const UV *sig, int nsig, UV j)
         if (t == 0) break;
         u    = (e2 == 1) ? n / t : rootint(n / t, e2);
         pc_u = prime_count(u);
-        ++local_j;  /* now local_j == prime_count(p) */
+        ++local_j;
         if (pc_u > local_j) count += pc_u - local_j;
       }
 
     } else {
-      /* else {
-       *   my $new_sum = $rem_sum - $e;
-       *   for (my $p = $lo; $p <= $hi;) {
-       *     my $t = mulint($m, powint($p, $e));
-       *     my $r = next_prime($p);
-       *     __SUB__->($t, $r, \@new_sig, $new_sum, ++$local_j);
-       *     $p = $r;
-       *   }
-       * } */
       UV local_j = j;
       for (p = lo; p <= hi;) {
         UV t = mul_pow_limit(m, p, e, n);
         UV r;
         if (t == 0) break;
         r = next_prime(p);
-        ++local_j;  /* now local_j == prime_count(p) == prime_count(r - 1) */
+        ++local_j;
         count += count_sig(n, t, r, new_sig, nk, local_j);
         p = r;
       }
@@ -441,9 +395,6 @@ static UV count_sig(UV n, UV m, UV lo, const UV *sig, int nsig, UV j)
 
 /******************************************************************************/
 /* Count callback and per-signature count-in-range                            */
-/*                                                                             */
-/* Mirrors count_prime_signature_numbers_in_range($A, $B, $sig):              */
-/*   count_upto(B, sig) - count_upto(A-1, sig)                               */
 /******************************************************************************/
 
 typedef struct {
@@ -467,7 +418,7 @@ static void count_callback(void *data, const UV *sig, int nsig)
 }
 
 /******************************************************************************/
-/* List path (original positional recursion, unchanged and correct)           */
+/* List path                                                                   */
 /******************************************************************************/
 
 typedef struct {
